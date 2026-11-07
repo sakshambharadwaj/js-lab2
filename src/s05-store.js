@@ -15,37 +15,55 @@ export const initialState = Object.freeze({
   grades: {},           // the SGPA calculator form: { [courseId]: "A" | "A-" | … }
 });
 
+const pick = ({ id, code, title, credits }) => ({ id, code, title, credits });
+
 export function transition(state, event) {
   switch (event.type) {
     case "LOAD_START":
-      // status becomes "loading" and error becomes null; everything else stays
-      throw new Error("TODO: LOAD_START");
-    case "LOAD_OK":
-      // status "ready", courses from event.courses; on the FIRST success also
-      // fill departments (unique, sorted) from those courses
-      throw new Error("TODO: LOAD_OK");
+      return { ...state, status: "loading", error: null };
+    case "LOAD_OK": {
+      const departments =
+        state.departments.length === 0
+          ? [...new Set(event.courses.map((c) => c.department))].sort()
+          : state.departments;
+      return {
+        ...state,
+        status: "ready",
+        courses: event.courses,
+        departments,
+        error: null,
+      };
+    }
     case "LOAD_FAIL":
-      // status "error", error from event.message (keep the old courses)
-      throw new Error("TODO: LOAD_FAIL");
+      return { ...state, status: "error", error: event.message };
     case "SET_DEPARTMENT":
-      // department from event.department — the SAME state if it didn't change
-      throw new Error("TODO: SET_DEPARTMENT");
+      if (state.department === event.department) return state;
+      return { ...state, department: event.department };
     case "SET_QUERY":
-      // query from event.query — the SAME state if it didn't change
-      throw new Error("TODO: SET_QUERY");
-    case "ADD":
-      // add { id, code, title, credits } of event.course to the planner —
-      // the SAME state if it's already there.
-      // Stretch: also refuse a full course, or one that would go over 24 credits.
-      throw new Error("TODO: ADD");
-    case "REMOVE":
-      // remove the course with id event.id, AND its grade if it has one —
-      // the SAME state if it isn't in the planner
-      throw new Error("TODO: REMOVE");
-    case "SET_GRADE":
-      // grades[event.id] = event.grade (a computed key!); an empty grade ""
-      // removes that course's entry — the SAME state if nothing changes
-      throw new Error("TODO: SET_GRADE");
+      if (state.query === event.query) return state;
+      return { ...state, query: event.query };
+    case "ADD": {
+      if (state.planner.some((c) => c.id === event.course.id)) return state;
+      return { ...state, planner: [...state.planner, pick(event.course)] };
+    }
+    case "REMOVE": {
+      if (!state.planner.some((c) => c.id === event.id)) return state;
+      const { [event.id]: _dropped, ...grades } = state.grades;
+      return {
+        ...state,
+        planner: state.planner.filter((c) => c.id !== event.id),
+        grades,
+      };
+    }
+    case "SET_GRADE": {
+      if (event.grade === "") {
+        if (!(event.id in state.grades)) return state;
+        const { [event.id]: _dropped, ...grades } = state.grades;
+        return { ...state, grades };
+      }
+      if (state.grades[event.id] === event.grade) return state;
+      return { ...state, grades: { ...state.grades, [event.id]: event.grade } };
+    }
     default:
       return state; // an event we don't know changes nothing
   }
